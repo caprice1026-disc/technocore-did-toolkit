@@ -51,9 +51,10 @@ class TechnocoreClient:
             response_body = error.read(4096).decode("utf-8", errors="replace").strip()
             if allow_not_found and error.code == 404:
                 return b"", ""
-            raise TechnocoreError(
-                f"Technocore HTTP {error.code}: {response_body}"
-            ) from error
+            message = f"Technocore HTTP {error.code}: {response_body}"
+            if 500 <= error.code <= 599:
+                raise TechnocoreTransportError(message) from error
+            raise TechnocoreError(message) from error
         except (URLError, TimeoutError, OSError) as error:
             raise TechnocoreTransportError(f"Technocore transport error: {error}") from error
         if len(payload) > _MAX_RESPONSE_BYTES:
@@ -166,4 +167,3 @@ def find_verified_message(
             )
             return message
     raise TechnocoreError("verified signed message was not present in the room response")
-

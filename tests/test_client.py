@@ -8,6 +8,7 @@ import pytest
 from technocore_did.client import (
     TechnocoreClient,
     TechnocoreError,
+    TechnocoreTransportError,
     find_verified_message,
 )
 from technocore_did.identity import Identity
@@ -142,6 +143,15 @@ def test_http_error_body_is_preserved(server):
     server.response_body = b"409 conflict: existing-value"
     with pytest.raises(TechnocoreError, match="existing-value"):
         TechnocoreClient(server.url).put_note_if_absent("did-aa", "bbbb", "profile")
+
+
+def test_server_error_is_treated_as_ambiguous_transport_failure(server):
+    server.response_status = 503
+    server.response_body = b"service unavailable"
+    with pytest.raises(TechnocoreTransportError, match="503"):
+        TechnocoreClient(server.url).post_signed(
+            "lobby", "did:key:zexample", "A" * 85 + "Q", 1_700_000_000_000, "hello"
+        )
 
 
 def test_find_verified_message_checks_all_signed_fields(server):
