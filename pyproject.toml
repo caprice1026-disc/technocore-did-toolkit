@@ -6,7 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "technocore-did-toolkit"
 version = "0.1.0"
 description = "Windows-first DPAPI-protected Ed25519 DID toolkit for signed Technocore messages"
+readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = ["cryptography>=43,<46"]
 
 [project.optional-dependencies]
@@ -21,4 +23,3 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
