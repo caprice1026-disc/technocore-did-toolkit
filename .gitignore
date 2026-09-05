@@ -1,0 +1,10 @@
+.venv/
+.tmp/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+identity.dpapi
+state.json
+proofs.jsonl

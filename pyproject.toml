@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "technocore-did-toolkit"
+version = "0.1.0"
+description = "Windows-first DPAPI-protected Ed25519 DID toolkit for signed Technocore messages"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=43,<46"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+build = ["build>=1,<2"]
+
+[project.scripts]
+technocore-did = "technocore_did.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
