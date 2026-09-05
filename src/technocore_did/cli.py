@@ -77,6 +77,10 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _print_json(value: dict) -> None:
+    print(json.dumps(value, ensure_ascii=True, sort_keys=True))
+
+
 def _create_identity(paths: Paths) -> PublicState:
     if paths.keystore.exists() or paths.state.exists():
         raise FileExistsError(
@@ -229,7 +233,7 @@ def main(
         print(state.did)
     elif arguments.command == "publish-profile":
         proof = _publish_profile(paths, client_factory(arguments.base_url))
-        print(json.dumps(proof, ensure_ascii=False, sort_keys=True))
+        _print_json(proof)
     elif arguments.command == "say":
         proof = _say(
             paths,
@@ -237,10 +241,10 @@ def main(
             arguments.room,
             arguments.text,
         )
-        print(json.dumps(proof, ensure_ascii=False, sort_keys=True))
+        _print_json(proof)
     elif arguments.command == "proofs":
         for proof in read_proofs(paths.proofs):
-            print(json.dumps(proof, ensure_ascii=False, sort_keys=True))
+            _print_json(proof)
     elif arguments.command == "audit":
         audit(paths, arguments.repo_dir)
         print("audit ok")
@@ -249,4 +253,3 @@ def main(
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

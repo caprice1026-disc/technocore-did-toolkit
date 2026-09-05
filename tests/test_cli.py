@@ -1,5 +1,7 @@
 import json
+import io
 from pathlib import Path
+from contextlib import redirect_stdout
 
 import pytest
 
@@ -134,3 +136,29 @@ def test_paths_match_windows_default_names(tmp_path):
     assert paths.keystore.name == "identity.dpapi"
     assert paths.state.name == "state.json"
     assert paths.proofs.name == "proofs.jsonl"
+
+
+def test_json_output_is_safe_on_cp932_console(paths, capsys):
+    client = FakeClient("https://example.test")
+    main(["--data-dir", str(paths.root), "init"])
+    capsys.readouterr()
+    encoded = io.BytesIO()
+    console = io.TextIOWrapper(encoded, encoding="cp932")
+    with redirect_stdout(console):
+        assert (
+            main(
+                [
+                    "--data-dir",
+                    str(paths.root),
+                    "--base-url",
+                    client.base_url,
+                    "say",
+                    "technocore",
+                    "released — safely",
+                ],
+                client_factory=lambda _: client,
+            )
+            == 0
+        )
+    console.flush()
+    assert b"\\u2014" in encoded.getvalue()
