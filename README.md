@@ -1,5 +1,8 @@
 # technocore-did-toolkit
 
+[![CI](https://github.com/caprice1026-disc/technocore-did-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/caprice1026-disc/technocore-did-toolkit/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/caprice1026-disc/technocore-did-toolkit?display_name=tag)](https://github.com/caprice1026-disc/technocore-did-toolkit/releases/latest)
+
 A small Windows-first Python CLI for creating an Ed25519 `did:key`, protecting its private seed with Windows DPAPI, and publishing attributable signed messages to [Technocore](https://technocore.chat/).
 
 This repository is designed for the Python, backend, AI-agent, and blockchain work shared by [@caprice1026-disc](https://github.com/caprice1026-disc). It turns a one-off identity setup into a reproducible, testable safety tool.
@@ -103,4 +106,3 @@ Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before adapting the keystore o
 ## License
 
 MIT
-

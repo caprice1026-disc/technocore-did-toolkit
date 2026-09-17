@@ -1,0 +1,40 @@
+name: Reproducibility report
+description: Share a reproducible run or compatibility result.
+title: "[Repro] "
+body:
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: Python 3.12.x
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: Remove private paths, keys, mailbox names, and signatures.
+      placeholder: .\.venv\Scripts\python.exe -m technocore_did.cli audit
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result and improvement idea
+      description: Include sanitized output, timing, and what you expected.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed private keys, DPAPI files, mailbox capabilities, and unredacted signatures.
+          required: true
