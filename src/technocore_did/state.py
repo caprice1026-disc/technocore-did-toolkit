@@ -1,11 +1,11 @@
 """Atomic persistence for public identity metadata and room nonces."""
 
-from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import secrets
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
+from pathlib import Path
 
 from .protocol import next_nonce, validate_name
 
@@ -41,15 +41,17 @@ def _state_from_dict(data: object) -> PublicState:
     nonces = data.get("last_nonce_by_room")
     if not isinstance(did, str) or not did:
         raise ValueError("public state has an invalid DID")
+    if not isinstance(mailbox, str):
+        raise ValueError("public state has an invalid mailbox")  # noqa: TRY004 -- persisted-state validation API
     validate_name(mailbox)
     if not isinstance(created_at, str) or not created_at:
         raise ValueError("public state has an invalid creation time")
     if not isinstance(nonces, dict):
-        raise ValueError("public state has an invalid nonce map")
+        raise ValueError("public state has an invalid nonce map")  # noqa: TRY004 -- persisted-state validation API
     checked_nonces: dict[str, int] = {}
     for room, nonce in nonces.items():
         validate_name(room)
-        if next_nonce(nonce - 1, nonce) != nonce:
+        if next_nonce(None, nonce) != nonce:
             raise ValueError("public state has an invalid nonce")
         checked_nonces[room] = nonce
     return PublicState(1, did, mailbox, created_at, checked_nonces)
@@ -60,12 +62,16 @@ def load_state(path: Path) -> PublicState:
     return _state_from_dict(data)
 
 
+def _state_bytes(state: PublicState) -> bytes:
+    return (
+        json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode("utf-8")
+
+
 def save_state(path: Path, state: PublicState) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
-    encoded = (
-        json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    ).encode("utf-8")
+    encoded = _state_bytes(state)
     try:
         with temporary.open("xb") as stream:
             stream.write(encoded)

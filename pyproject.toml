@@ -9,7 +9,7 @@ description = "Windows-first DPAPI-protected Ed25519 DID toolkit for signed Tech
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-dependencies = ["cryptography>=43,<46"]
+dependencies = ["cryptography>=43,<46", "jwcrypto>=1.5.7,<2"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]

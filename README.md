@@ -23,12 +23,13 @@ This repository is designed for the Python, backend, AI-agent, and blockchain wo
 - posts signed room and mailbox messages through JSON POST;
 - verifies returned records locally and writes public-only JSONL proofs;
 - audits DPAPI round-trips, DID consistency, proof signatures, and repository leakage.
+- exports an authenticated, password-encrypted offline backup and imports it into a new Windows DPAPI store, preserving the DID, public state, and proofs.
 
 ## Requirements
 
 - Windows 10 or 11
 - Python 3.10 or newer
-- the `cryptography` package (the only third-party runtime dependency)
+- `cryptography` and `jwcrypto` (installed by the command below)
 
 ## Install for development
 
@@ -65,6 +66,10 @@ technocore-did audit
 
 For isolated testing, all commands accept `--data-dir PATH`, `--base-url URL`, and `--repo-dir PATH` before the command name.
 
+For offline migration, stop every source writer first, then use `export OUTPUT --source-stopped` and `import BACKUP --expected-did PUBLIC_DID`. Both require a real interactive terminal for passphrase entry; no passphrase argument, environment variable, or pipe is supported. Import requires an absent data directory and never overwrites an existing identity. Follow the complete [Windows migration guide (Japanese)](docs/MIGRATION.ja.md) before using either command.
+
+Migration refuses paths beneath `--repo-dir` and ancestor `.git` markers. Bare repositories and working trees with a separate `GIT_DIR` / `GIT_WORK_TREE` need their protected root explicitly supplied as `--repo-dir`; both backup and imported data must be stored outside that root.
+
 ## Data boundary
 
 | Path | Contents | Safe to publish? |
@@ -73,8 +78,9 @@ For isolated testing, all commands accept `--data-dir PATH`, `--base-url URL`, a
 | `%LOCALAPPDATA%\TechnocoreDID\state.json` | DID, mailbox name, creation time, last room nonces | Usually, but unnecessary |
 | `%LOCALAPPDATA%\TechnocoreDID\proofs.jsonl` | DID, messages, signatures, sequence numbers, timestamps, URLs | Yes; these are public records |
 | Git repository | Source, tests, and documentation only | Yes |
+| `*.tcdid.jwe` outside the repository | Authenticated encrypted private-key, state, and proof snapshot | No |
 
-DPAPI binds decryption to the current Windows user profile. Copying `identity.dpapi` is not a useful plaintext export, but a process running as the same user can ask Windows to decrypt it. Losing the Windows profile may make the DID unrecoverable. This release intentionally has no plaintext or password-export command.
+DPAPI binds decryption to the current Windows user profile. Copying `identity.dpapi` alone usually cannot restore the identity on another PC. A process running as the same user can ask Windows to decrypt it. Create an encrypted migration backup while the original profile still works; without that profile or a usable backup, the DID may be unrecoverable. Plaintext seed display and export remain unsupported. Encrypted migration uses compact JWE with PBES2-HS512+A256KW and A256GCM; the private key is PKCS#8 inside the authenticated payload.
 
 ## Protocol notes
 
@@ -101,7 +107,9 @@ See Technocore's [authentication note](https://technocore.chat/auth.md), [comple
 technocore-did audit
 ```
 
-Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before adapting the keystore or adding export features.
+`did` and `audit` internally decrypt the selected identity. To verify the migration software without accessing a real identity, run `python -m pytest -q tests/test_migration.py tests/test_migration_cli.py --tb=short`; these tests use temporary stores and disposable keys. Same-PC DPAPI integration and a model of different protection contexts are covered; an actual transfer between two Windows PCs has not been tested.
+
+Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before adapting the keystore or migration format.
 
 ## License
 

@@ -8,3 +8,6 @@ build/
 identity.dpapi
 state.json
 proofs.jsonl
+*.tcdid.jwe
+.*.tcdid.jwe.*.tmp
+.*.import-*/

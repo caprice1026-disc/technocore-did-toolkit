@@ -1,11 +1,11 @@
 """Current-user Windows DPAPI storage for an Ed25519 private seed."""
 
 import ctypes
-from ctypes import wintypes
 import os
-from pathlib import Path
 import secrets
 import sys
+from ctypes import wintypes
+from pathlib import Path
 
 from .identity import Identity
 

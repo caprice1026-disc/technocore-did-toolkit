@@ -33,7 +33,7 @@ def test_empty_or_oversized_swept_text_is_rejected():
 
 def test_message_payload_is_exact_utf8():
     assert message_payload("lobby", 123, "こんにちは") == (
-        "lobby|123|こんにちは".encode("utf-8")
+        "lobby|123|こんにちは".encode()
     )
 
 

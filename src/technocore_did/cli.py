@@ -1,13 +1,17 @@
 """Command-line workflow for safe, attributable Technocore participation."""
 
 import argparse
-from dataclasses import dataclass
-from datetime import datetime, timezone
+import getpass
 import json
 import os
-from pathlib import Path
 import secrets
-from typing import Callable, Sequence
+import sys
+import warnings
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import NoReturn
 
 from .client import (
     TechnocoreClient,
@@ -17,6 +21,7 @@ from .client import (
 )
 from .identity import Identity
 from .keystore_windows import create_keystore, load_identity
+from .migration import MigrationError, export_backup, import_backup, validate_passphrase
 from .proofs import append_proof, read_proofs, verify_message_proof
 from .protocol import (
     did_note_location,
@@ -39,6 +44,14 @@ _SKIPPED_REPOSITORY_DIRECTORIES = {".git", ".venv", ".tmp", "__pycache__"}
 
 class AuditError(RuntimeError):
     pass
+
+
+class _SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        # argparse's default error repeats arbitrary argv, including secrets
+        # mistakenly supplied as an unsupported password option or command.
+        self.print_usage(sys.stderr)
+        self.exit(2, "Invalid command-line arguments; use --help. Input values were omitted.\n")
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,21 @@ def _print_json(value: dict) -> None:
     print(json.dumps(value, ensure_ascii=True, sort_keys=True))
 
 
+def _read_passphrase(*, confirm: bool) -> str:
+    if not sys.stdin.isatty():
+        raise MigrationError("migration requires an interactive terminal; passphrases cannot be piped")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        try:
+            passphrase = getpass.getpass("Migration passphrase: ")
+            validate_passphrase(passphrase)
+            if confirm and getpass.getpass("Confirm passphrase: ") != passphrase:
+                raise MigrationError("passphrase confirmation did not match")
+        except (getpass.GetPassWarning, EOFError):
+            raise MigrationError("secure terminal passphrase input is unavailable") from None
+    return passphrase
+
+
 def _create_identity(paths: Paths) -> PublicState:
     if paths.keystore.exists() or paths.state.exists():
         raise FileExistsError(
@@ -102,6 +130,7 @@ def _publish_profile(paths: Paths, client: TechnocoreClient) -> dict:
         "github:https://github.com/caprice1026-disc "
         "agent:technocore-did-toolkit"
     )
+    stored: str | None
     try:
         stored = client.put_note_if_absent(namespace, key, value)
     except TechnocoreError:
@@ -146,7 +175,7 @@ def _say(paths: Paths, client: TechnocoreClient, room: str, raw_text: str) -> di
                 signature=signature,
                 text=text,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 -- preserve the original ambiguous-post error
             raise transport_error
     record_nonce(paths.state, state, room, nonce)
     seq = record["seq"]
@@ -197,7 +226,7 @@ def audit(paths: Paths, repository: Path) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _SafeArgumentParser(
         prog="technocore-did",
         description="DPAPI-protected Ed25519 DID tools for Technocore",
     )
@@ -213,6 +242,13 @@ def _parser() -> argparse.ArgumentParser:
     say.add_argument("text")
     commands.add_parser("proofs", help="print public proof records")
     commands.add_parser("audit", help="verify storage, signatures, and repository safety")
+    export = commands.add_parser("export", help="export an authenticated offline migration backup")
+    export.add_argument("output", type=Path)
+    export.add_argument("--source-stopped", action="store_true",
+                        help="acknowledge that every source writer/automation has been stopped")
+    restore = commands.add_parser("import", help="import into a new, absent data directory")
+    restore.add_argument("backup", type=Path)
+    restore.add_argument("--expected-did", required=True, help="public DID recorded on the source PC")
     return parser
 
 
@@ -223,6 +259,33 @@ def main(
 ) -> int:
     arguments = _parser().parse_args(argv)
     paths = Paths.from_root(arguments.data_dir)
+
+    if arguments.command in {"export", "import"}:
+        try:
+            if arguments.command == "export":
+                if not arguments.source_stopped:
+                    raise MigrationError("stop all source writers, then acknowledge --source-stopped")
+                did = export_backup(paths.root, arguments.output,
+                                    _read_passphrase(confirm=True),
+                                    repository=arguments.repo_dir, source_stopped=True)
+            else:
+                did = import_backup(arguments.backup, paths.root,
+                                    _read_passphrase(confirm=False),
+                                    expected_did=arguments.expected_did,
+                                    repository=arguments.repo_dir)
+        except MigrationError as error:
+            print(f"Migration failed: {error}", file=sys.stderr)
+            return 1
+        except FileExistsError:
+            print("Migration refused: destination already exists; nothing was overwritten.", file=sys.stderr)
+            return 1
+        except (Exception, KeyboardInterrupt):  # noqa: BLE001 -- never print secret-bearing errors
+            # Do not emit library exception details, input contents, or a traceback.
+            print("Migration failed or cancelled; verify paths, passphrase, DID and source state.",
+                  file=sys.stderr)
+            return 1
+        print(f"Migration {arguments.command} complete: {did}")
+        return 0
 
     if arguments.command == "init":
         state = _create_identity(paths)

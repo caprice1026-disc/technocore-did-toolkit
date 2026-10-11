@@ -27,7 +27,7 @@ def _check_no_sensitive_keys(value: Any) -> None:
 
 def _validate_proof(proof: dict[str, Any]) -> None:
     if not isinstance(proof, dict):
-        raise ValueError("proof must be a JSON object")
+        raise ValueError("proof must be a JSON object")  # noqa: TRY004 -- public proof validation API
     _check_no_sensitive_keys(proof)
     missing = [field for field in _BASE_FIELDS if field not in proof]
     if proof.get("action") == "signed_message":
@@ -77,7 +77,7 @@ def verify_message_proof(proof: dict[str, Any]) -> bool:
     if not all(isinstance(value, str) for value in (room, text, did, signature)):
         raise ValueError("signed-message proof contains invalid string fields")
     if isinstance(nonce, bool) or not isinstance(nonce, int):
-        raise ValueError("signed-message proof contains an invalid nonce")
+        raise ValueError("signed-message proof contains an invalid nonce")  # noqa: TRY004 -- public proof validation API
     verify_signature(
         did,
         message_payload(room, nonce, text),

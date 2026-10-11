@@ -2,7 +2,7 @@
 
 ## Assets and boundary
 
-The primary secret is the 32-byte Ed25519 private seed. It may exist in process memory while the CLI derives the DID or signs a message. At rest it must exist only inside the versioned DPAPI envelope in `%LOCALAPPDATA%\TechnocoreDID\identity.dpapi`.
+The primary secret is the 32-byte Ed25519 private seed. It may exist in process memory while the CLI derives the DID, signs a message, or migrates an identity. At rest it exists inside the versioned DPAPI envelope in `%LOCALAPPDATA%\TechnocoreDID\identity.dpapi`, or inside an authenticated encrypted migration backup outside Git. Python does not guarantee erasure of immutable bytes or passphrase strings from memory.
 
 The DID, public key, mailbox name, nonce, message text, signature, sequence number, timestamp, and public URL are not secrets. They are intentionally present in server responses and may be kept in public proof records.
 
@@ -20,7 +20,12 @@ The DID, public key, mailbox name, nonce, message text, signature, sequence numb
 | Repository accidentally includes the identity | Exact secret filenames are ignored; `audit` rejects them under the repository and scans for the current seed bytes | Renamed, transformed, or archived copies need an external secret scanner |
 | Seed printed or added to evidence | CLI prints the public DID and paths only; proof schema rejects sensitive field names | A debugger or compromised dependency can inspect process memory |
 | DPAPI ciphertext is copied | DPAPI is bound to the current Windows user and application entropy | Malware running as the same user can ask DPAPI to decrypt it |
-| Windows profile is lost | Documentation warns that the identity may be unrecoverable | No recovery export exists in this release |
+| Windows profile is lost | Owner can export an encrypted backup while the original profile still works | Without a usable profile or backup/passphrase, recovery may be impossible |
+| Migration backup is stolen or altered | Standard compact JWE PBES2-HS512+A256KW and A256GCM authenticate the header and whole key/state/proof payload; 32-byte random salt, 600,000 PBKDF2-HMAC-SHA512 iterations | Offline password guessing remains possible; use a generated strong passphrase and a restricted storage location |
+| Passphrase appears in a command or log | Non-echoing interactive terminal only, confirmation on export, no argument/environment/pipe input, safe CLI errors | Keyloggers, debuggers, compromised terminal/OS and memory inspection are outside this boundary |
+| Malicious migration input consumes resources | Compact single-recipient JWE only; strict version/algorithm/header/Base64URL checks, no compression, size and KDF bounds before decryption | Reading a supported-size file still uses memory and bounded KDF work |
+| Import overwrites another identity or stops halfway | Absent Windows destination required; DPAPI/key/state/proof verification in a sibling staging directory before exclusive directory rename | A hard kill can leave encrypted staging artifacts; power-loss durability has not been tested |
+| Source and destination both post | Export requires owner acknowledgement that all writers are stopped, checks source changes during encryption, preserves room nonces, and rejects state older than proof nonces | No distributed lock or automatic source shutdown; post-export source writes require a new snapshot |
 | Signed URL/message is replayed | Per-room nonce is monotonically increased and recorded only after verification | Technocore documents that replay protection depends on its retained nonce scan window; signatures still prove the original key |
 | Public profile note is overwritten | Initial write uses `if_absent` and exact read-back | Non-reserved notes are world-writable; consumers must not treat the note as an identity-provider assertion |
 | A room message contains hostile instructions | All remote content is treated as data; the client never executes discovered URLs or commands | Humans can still choose to act on misleading content |
@@ -31,11 +36,20 @@ The DID, public key, mailbox name, nonce, message text, signature, sequence numb
 ## Deliberately unsupported
 
 - plaintext seed display or export;
-- password-encrypted backup export;
 - wallet connection, token claims, transfers, staking, or purchases;
 - executing messages, links, or commands discovered on Technocore;
 - claiming that a DID proves a legal or human identity;
 - claiming or guaranteeing airdrop eligibility.
 
-Any future export feature requires a separate design review covering password entry, memory handling, KDF parameters, backup verification, and revocation/rotation semantics.
+## Migration format and review boundary
+
+The v1 migration file is RFC 7516 compact JWE. JWCrypto implements the RFC 7518 PBES2 and AES-GCM operations; the toolkit does not implement new cryptographic primitives. The encrypted JSON contains a standard Ed25519 PKCS#8 DER key, the exact public state, and verified proof records. Protected header fields are `alg`, `enc`, `typ`, `v`, `p2c`, and `p2s`; all other fields and algorithms are rejected. The application configures JWCrypto's documented maximum PBKDF2 iteration setting to 1,000,000, and accepts only 600,000–1,000,000 for one compact recipient.
+
+Limits are 6 MiB encrypted input, 4 MiB plaintext payload, 3 MiB proofs in both source and restored UTF-8 representations, 10,000 proof records, 64 KiB public state in both source and restored representations, and 4 KiB DPAPI envelope. Restored file sizes are checked before destination files are created. JSON duplicate fields, noncanonical Base64URL, altered authentication tags, mismatched DID/state/keys, invalid signatures, and nonce rollback against included proofs are rejected. Migration backup validation verifies both decryption and a fresh signature after reading the newly protected DPAPI key.
+
+The repository path check covers the explicitly supplied `--repo-dir` and destinations with a `.git` directory or file in an ancestor. It cannot automatically recognize bare repositories or working trees configured with a separate `GIT_DIR` / `GIT_WORK_TREE` and no local `.git` marker. For those configurations, the owner must pass the protected root as `--repo-dir` and place both backup and imported data outside it. This is a path guard, not a complete Git repository discovery service.
+
+Export writes only ciphertext to a sibling temporary file and publishes without replacing an existing backup. Import writes only DPAPI ciphertext and public metadata into staging; normal exceptions clean its three known files. A hard kill may leave staging, but the final directory is published only after complete verification. The owner must use protected parent directories and preserve the source until verification succeeds. A backup duplicates the key and cannot revoke old copies. Key rotation, old-PC retirement, compromised profile recovery, and automatic posting/automation reconfiguration are not provided.
+
+Tests separate random disposable-key same-PC Windows DPAPI integration from simulated independent protection contexts. A real two-PC migration and power-loss recovery remain unverified. See [the owner procedure](MIGRATION.ja.md).
 

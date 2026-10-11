@@ -36,7 +36,7 @@ def validate_name(name: str) -> str:
 
 def _validate_nonce(nonce: int) -> int:
     if isinstance(nonce, bool) or not isinstance(nonce, int):
-        raise ValueError("nonce must be an integer of 1 to 19 digits")
+        raise ValueError("nonce must be an integer of 1 to 19 digits")  # noqa: TRY004 -- public nonce validation API
     if nonce < 1 or nonce > _MAX_NONCE:
         raise ValueError("nonce must contain 1 to 19 digits")
     return nonce
@@ -47,7 +47,7 @@ def message_payload(room: str, nonce: int, text: str) -> bytes:
     _validate_nonce(nonce)
     if not isinstance(text, str):
         raise TypeError("text must be a string")
-    return f"{room}|{nonce}|{text}".encode("utf-8")
+    return f"{room}|{nonce}|{text}".encode()
 
 
 def encode_signature(signature: bytes) -> str:
@@ -73,7 +73,7 @@ def next_nonce(previous: int | None, now_ms: int | None = None) -> int:
         _validate_nonce(previous)
     current = int(time.time() * 1000) if now_ms is None else now_ms
     if isinstance(current, bool) or not isinstance(current, int):
-        raise ValueError("current time must be integer milliseconds")
+        raise ValueError("current time must be integer milliseconds")  # noqa: TRY004 -- public nonce validation API
     candidate = max(current, (previous or 0) + 1)
     return _validate_nonce(candidate)
 
